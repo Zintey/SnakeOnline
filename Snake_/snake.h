@@ -30,9 +30,7 @@ class DoubleBuffer;
 class Snake {
 public:
 	Snake(PlayerID id, int len, Direction dir, float speed, Vector2 position,
-		int opt_up, int opt_down, int opt_left, int opt_right, int opt_accelerate,
 		WORD eyes_color, WORD body_color, WORD body_accelerate_color);
-
 	~Snake();
 
 	void on_input(int opt);

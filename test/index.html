@@ -1,0 +1,49 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Snake Controller</title>
+<style>
+  body { background-color: #222; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: sans-serif; touch-action: none; overflow: hidden; }
+  .grid { display: grid; grid-template-columns: 100px 100px 100px; gap: 15px; }
+  .btn { width: 100px; height: 100px; background-color: #444; border: 2px solid #666; border-radius: 20px; font-size: 40px; color: white; display: flex; align-items: center; justify-content: center; user-select: none; transition: background 0.1s; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+  .btn:active { background-color: #888; transform: translateY(2px); }
+  /* 为空格键单独写的长条样式 */
+  .btn-space { width: 330px; height: 80px; margin-top: 15px; font-size: 30px; }
+  #status { margin-bottom: 30px; font-size: 22px; color: yellow; font-weight: bold; }
+</style>
+</head>
+<body>
+<div id="status">Connecting to PC...</div>
+<div class="grid">
+  <div></div><div class="btn" id="btn-w">W</div><div></div>
+  <div class="btn" id="btn-a">A</div><div class="btn" id="btn-s">S</div><div class="btn" id="btn-d">D</div>
+</div>
+<div class="btn btn-space" id="btn-space">SPACE</div>
+
+<script>
+  const status = document.getElementById('status');
+  const ws = new WebSocket('ws://' + window.location.hostname + ':8765');
+  
+  ws.onopen = () => { status.innerText = "Ready! (Connected)"; status.style.color = "lime"; };
+  ws.onclose = () => { status.innerText = "Disconnected"; status.style.color = "red"; };
+
+  function sendKey(k) { if (ws.readyState === WebSocket.OPEN) ws.send(k); }
+
+  // 绑定 WASD
+  ['w', 'a', 's', 'd'].forEach(k => {
+    const btn = document.getElementById('btn-' + k);
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); sendKey(k); btn.style.backgroundColor = '#888'; });
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); btn.style.backgroundColor = '#444'; });
+    btn.addEventListener('mousedown', (e) => { e.preventDefault(); sendKey(k); }); 
+  });
+
+  // 绑定空格键 (发送单字符 ' '，方便 Python 的 struct.pack 直接打包给 C++)
+  const btnSpace = document.getElementById('btn-space');
+  btnSpace.addEventListener('touchstart', (e) => { e.preventDefault(); sendKey(' '); btnSpace.style.backgroundColor = '#888'; });
+  btnSpace.addEventListener('touchend', (e) => { e.preventDefault(); btnSpace.style.backgroundColor = '#444'; });
+  btnSpace.addEventListener('mousedown', (e) => { e.preventDefault(); sendKey(' '); });
+</script>
+</body>
+</html>

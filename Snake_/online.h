@@ -135,6 +135,7 @@ public:
 	}	
 	in_addr get_server_addr() const { return server_addr.sin_addr; }
 	uint8_t get_clients_size() const { return clients.size();  }
+	std::vector<std::unique_ptr<SockData>>& get_clients() { return clients; }
 private:
 	using ClientData = SockData;
 	SOCKET listen_socket = INVALID_SOCKET;

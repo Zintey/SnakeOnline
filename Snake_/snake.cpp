@@ -3,17 +3,11 @@
 
 extern std::vector<ScoreSpawner*> score_spawner_list;
 
-Snake::Snake(PlayerID id, int len, Direction dir, float speed, Vector2 position, 
-	int opt_up, int opt_down, int opt_left, int opt_right, int opt_accelerate,
-	WORD eyes_color = FG_RED, WORD body_color = BG_YELLOW, WORD body_accelerate_color = BG_DARK_YELLOW)
-	: id(id), dst_len(len), dir(dir), speed(speed), 
+Snake::Snake(PlayerID id, int len, Direction dir, float speed, Vector2 position,
+	WORD eyes_color, WORD body_color, WORD body_accelerate_color)
+	: id(id), dst_len(len), dir(dir), speed(speed),
 	eyes_color(eyes_color), body_color(body_color), body_accelerate_color(body_accelerate_color)
 {
-	OPT_UP = opt_up;
-	OPT_DOWN = opt_down;
-	OPT_LEFT = opt_left;
-	OPT_RIGHT = opt_right;
-	OPT_ACCELETATE = opt_accelerate;
 
 	Node* node = new Node();
 	node->position = position;

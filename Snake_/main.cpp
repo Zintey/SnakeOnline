@@ -22,10 +22,11 @@ Canvas* canvas;
 MapItemType map[HEIGHT][WIDTH];
 Vector2 map_anchor = { 0, 5 };
 
-Snake* player_1;
-Snake* player_2;
+//Snake* player_1;
+//Snake* player_2;
+std::vector<std::shared_ptr<Snake>> players;
 std::vector<ScoreSpawner*> score_spawner_list;
-WallSpawner* wall_spawner;
+//WallSpawner* wall_spawner;
 
 GameServer* game_server = nullptr;
 GameClient* game_client = nullptr;
@@ -36,7 +37,7 @@ void map_init()
         for (int j = 0; j < WIDTH; j++)
             map[i][j] = MapItemType::Null;
     for (int i = 0; i < WIDTH; i++)
-        map[0][i] = map[HEIGHT - 1][i] = MapItemType::Wall;
+        map[0][i] = map[HEIGHT - 1][i] = MapItemType::Null;
 }
 
 void draw_map()
@@ -78,23 +79,29 @@ char get_direction_char(Direction dir)
     return c;
 }
 
+
+
 void create_new_game()
 {
     bool is_game_over = false;
-
     map_init();
-
-    player_1 = new Snake(PlayerID::P1, 15, Direction::Right, 4, Vector2{ 3, 3 },
-        'w', 's', 'a', 'd', ' ', FG_GREEN, BG_DARK_BLUE, BG_BLUE);
-    player_2 = new Snake(PlayerID::P2, 15, Direction::Left, 4, Vector2{ HEIGHT - 4, WIDTH - 4 },
-        72, 80, 75, 77, '.', FG_RED, BG_YELLOW, BG_DARK_YELLOW);
+    players.clear();
+    auto configs = game_client->get_players_config();
+    for (int i = 0; i < game_client->get_all_player_cnt(); ++i) {
+        auto& cfg = configs[i];
+        players.push_back(std::make_shared<Snake>(
+            (PlayerID)cfg.player_id, 15, (Direction)cfg.dir, 4,
+            Vector2{ cfg.spawn_x, cfg.spawn_y },
+            cfg.eyes_color, cfg.color, cfg.color
+        ));
+    }
 
     score_spawner_list.push_back(new ScoreSpawner(10, 1000, 9000,
         BG_GREEN, BG_DARK_GREEN, Vector2{ map_anchor.x + 2 * (WIDTH + 1), map_anchor.y }));
     score_spawner_list.push_back(new ScoreSpawner(50, 5000, 5000,
         BG_CYAN, BG_DARK_CYAN, Vector2{ map_anchor.x + 2 * (WIDTH + 2) + 1, map_anchor.y }));
 
-    wall_spawner = new WallSpawner(10000);
+    //wall_spawner = new WallSpawner(10000);
 
     clock_t last_tick_time = clock();
     clock_t timer = 0;
@@ -105,21 +112,37 @@ void create_new_game()
         if (_kbhit())
         {
             int ch = _getch();
-            player_1->on_input(ch);
-            player_2->on_input(ch);
+            while (_kbhit()) _getch();
+            if (game_client->get_player_id() < players.size())
+            {
+				InputMsg input_msg{ game_client->get_player_id(), (char)ch };
+				game_client->send_msg<InputMsg>(MsgType::Input, input_msg);
+
+            }
         }
+        while (true)
+        {
+            auto [type, body] = game_client->receive_msg<AllPlayerInputMsg>();
+            if (type == MsgType::Input)
+            {
+                for (int i = 0; i < game_client->get_all_player_cnt(); ++i) {
+                    if (body.inputs[i] != 0) {
+                        players[i]->on_input(body.inputs[i]);
+                    }
+                }
+                break;
+            }
+        }
+        //clock_t current_tick_time = clock();
+        clock_t delta_time = 1000 / 30;
+        //last_tick_time = current_tick_time;
 
-        clock_t current_tick_time = clock();
-        clock_t delta_time = current_tick_time - last_tick_time;
-        last_tick_time = current_tick_time;
-
-        player_1->on_update(delta_time);
-        player_2->on_update(delta_time);
+        for (auto& p : players) p->on_update(delta_time);
 
         for (ScoreSpawner* score_spawner : score_spawner_list)
             score_spawner->on_update(delta_time);
 
-        wall_spawner->on_update(delta_time);
+        //wall_spawner->on_update(delta_time);
 
         canvas->clear_buffer();
 
@@ -128,18 +151,15 @@ void create_new_game()
         canvas->draw_text_at(map_anchor.x + WIDTH - timer_text_len / 2, map_anchor.y - 4,
             ("time: " + std::to_string(timer / 1000) + " s").c_str(), FG_GRAY);
 
-        canvas->draw_text_at(map_anchor.x + 5, map_anchor.y - 3,
-            (" 1P Score: " + std::to_string(player_1->get_score()) + " ").c_str(),
-            player_1->get_body_color());
-
-        canvas->draw_text_at(map_anchor.x + 2 * WIDTH - 20, map_anchor.y - 3,
-            (" 2P Score: " + std::to_string(player_2->get_score()) + " ").c_str(),
-            player_2->get_body_color());
+        for (int i = 0; i < players.size(); i++) {
+            canvas->draw_text_at(map_anchor.x + 5 + i * 18, map_anchor.y - 3,
+                (" P" + std::to_string(i + 1) + " Score: " + std::to_string(players[i]->get_score()) + " ").c_str(),
+                players[i]->get_body_color());
+        }
 
         draw_map();
 
-        player_1->on_draw(canvas, map_anchor);
-        player_2->on_draw(canvas, map_anchor);
+        for (auto& p : players) p->on_draw(canvas, map_anchor);
 
         for (ScoreSpawner* score_spawner : score_spawner_list)
             score_spawner->on_draw(canvas, map_anchor);
@@ -147,31 +167,38 @@ void create_new_game()
         clock_t frame_end_time = clock();
         clock_t frame_draw_time = frame_end_time - frame_start_time;
 
-        if (player_1->check_is_die() && player_2->check_is_die())
+        int dead_count = 0;
+        int max_score = -1, winner = -1;
+        for (int i = 0; i < players.size(); i++) {
+            if (players[i]->check_is_die()) dead_count++;
+            if (players[i]->get_score() > max_score) {
+                max_score = players[i]->get_score();
+                winner = i + 1;
+            }
+        }
+
+        if (dead_count == players.size() && players.size() > 0)
         {
             is_game_over = true;
-            int text_len = 9;
-            canvas->draw_text_at(map_anchor.x + WIDTH - text_len / 2, map_anchor.y - 2,
-                (std::to_string(player_1->get_score() >= player_2->get_score() ? 1 : 2) + "P Win!!!").c_str(),
-                FG_YELLOW);
+            canvas->draw_text_at(map_anchor.x + WIDTH - 4, map_anchor.y - 2,
+                (std::to_string(winner) + "P Win!!!").c_str(), FG_YELLOW);
         }
         else
             canvas->swap_buffers();
 
-        if (frame_draw_time < 1000 / FPS)
-            Sleep(1000 / FPS - frame_draw_time);
+        //if (frame_draw_time < 1000 / FPS)
+            //Sleep(1000 / FPS - frame_draw_time);
     }
 
     canvas->draw_text_at(map_anchor.x + WIDTH - 44 / 2, 0,
         "Game Over!! Press R to restart, Esc to quit.", FG_DARK_RED);
     canvas->swap_buffers();
 
-    delete player_1; player_1 = nullptr;
-    delete player_2; player_2 = nullptr;
+    players.clear();
     score_spawner_list.clear();
-    delete wall_spawner;
+    //delete wall_spawner;
 }
-
+void run();
 void run_game()
 {
     srand(game_client->get_game_seed());
@@ -186,6 +213,10 @@ void run_game()
 
         if (c == 27)
             is_runing = false;
+        else {
+			delete canvas;
+            return run();
+        }
     }
     delete canvas;
 }
@@ -202,7 +233,6 @@ void create_room()
         std::cout << ip << " join" << std::endl;
         },
         [&]() {
-            // ！！！将其放入新线程，避免阻塞主线程的键盘监听 ！！！
             std::thread([]() {
                 game_client = new GameClient();
                 game_client->list_room();
@@ -262,6 +292,7 @@ void join_room()
 
 void run()
 {
+    system("cls");
     std::cout << "1. create room" << std::endl;
     std::cout << "2. join room" << std::endl;
     char c = _getch();

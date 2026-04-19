@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>手机控制器</title>
+    <style>
+        body { 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; margin: 0; background-color: #222; touch-action: none;
+        }
+        .btn-row { display: flex; justify-content: center; width: 100%; }
+        button { 
+            width: 80px; height: 80px; margin: 10px; font-size: 16px; 
+            border-radius: 15px; border: none; background-color: #555; color: white; 
+        }
+        button:active { background-color: #888; }
+        #spaceBtn { width: 200px; height: 80px; background-color: #d9534f; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="btn-row">
+        <button id="btnUp">上(W)</button>
+    </div>
+    <div class="btn-row">
+        <button id="btnLeft">左(A)</button>
+        <button id="btnDown">下(S)</button>
+        <button id="btnRight">右(D)</button>
+    </div>
+    <div class="btn-row">
+        <button id="spaceBtn">空格/加速</button>
+    </div>
+
+    <script>
+        // WebSocket 端口改为 9000 (IP 保持你之前的 Python 运行电脑 IP)
+        let ws = new WebSocket("ws://192.168.197.203:9000");
+
+        ws.onopen = function() {
+            console.log("已连接到服务器");
+        };
+
+        function sendCmd(cmd) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(cmd);
+            }
+        }
+
+        document.getElementById("btnUp").addEventListener("touchstart", (e) => { e.preventDefault(); sendCmd("UP"); });
+        document.getElementById("btnDown").addEventListener("touchstart", (e) => { e.preventDefault(); sendCmd("DOWN"); });
+        document.getElementById("btnLeft").addEventListener("touchstart", (e) => { e.preventDefault(); sendCmd("LEFT"); });
+        document.getElementById("btnRight").addEventListener("touchstart", (e) => { e.preventDefault(); sendCmd("RIGHT"); });
+        
+        document.getElementById("spaceBtn").addEventListener("touchstart", (e) => { e.preventDefault(); sendCmd("SPACE"); });
+    </script>
+</body>
+</html>

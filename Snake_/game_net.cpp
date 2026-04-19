@@ -32,8 +32,8 @@ void GameServer::create_room(int port, std::function<void(std::string)> connect_
 	std::thread listen_server_thread([this, &connect_callback]() {
 		start_listen([&connect_callback, this](std::string ip, uint8_t index, SOCKET client_socket) {
 			connect_callback(ip);
-			PlayerIdMsg id_msg{ index };
-			send_msg(client_socket, MsgType::PlayerIDInfo, id_msg);
+			PlayerIDMsg id_msg{ index };
+			send_msg(client_socket, MsgType::PlayerID, id_msg);
 			});
 		});
 
@@ -43,7 +43,7 @@ void GameServer::create_room(int port, std::function<void(std::string)> connect_
 	while (can_join)
 	{
 		char c = _getch();
-		if (c == 13) // Enter
+		if (c == 13 && this->get_clients_size()) // Enter
 		{
 			can_join = false;
 			break;
@@ -58,10 +58,60 @@ void GameServer::create_room(int port, std::function<void(std::string)> connect_
 void GameServer::start_game()
 {
 	srand(time(0));
-	StartGameMsg start_msg{(unsigned int)rand(), get_clients_size()};
-	send_to_all<StartGameMsg>(MsgType::StartGame, start_msg);
+	PlayerInfoMsg info_msg{};
+	info_msg.game_seed = (unsigned int)rand();
+	info_msg.all_player_cnt = get_clients_size();
+
+	for (int i = 0; i < info_msg.all_player_cnt; ++i) {
+		info_msg.players[i].player_id = i;
+		info_msg.players[i].spawn_x = rand() % (HEIGHT - 10) + 5;
+		info_msg.players[i].spawn_y = rand() % (WIDTH - 10) + 5;
+		
+		info_msg.players[i].color = ((rand() % 15 + 1) << 4) | (rand() % 15 + 1);
+		info_msg.players[i].eyes_color = 0x0F;
+		info_msg.players[i].dir = rand() % 4;
+	}
+
+	send_to_all(MsgType::PlayerInfo, info_msg);
 	close_listen();
 	LOG_INFO("game start\n");
+
+	update_game();
+}
+
+void GameServer::update_game()
+{
+	std::thread([this]() {
+		while (true) {
+			AllPlayerInputMsg msg{};
+
+			{
+				std::lock_guard<std::mutex> lock(mtx);
+				for (int i = 0; i < get_clients_size(); ++i) {
+					msg.inputs[i] = input_buf[i];
+					input_buf[i] = 0;
+				}
+			}
+
+			send_to_all(MsgType::Input, msg);
+
+			Sleep(1000 / 30);
+		}
+		}).detach();
+
+	// 最新按键
+	for (int i = 0; i < get_clients_size(); ++i) {
+		SOCKET& client_socket = get_clients()[i]->socket;
+		std::thread([this, &client_socket]() {
+			while (true) {
+				auto [type, body] = this->receive_msg<InputMsg>(client_socket);
+				if (type == MsgType::Input) {
+					std::lock_guard<std::mutex> lock(mtx);
+					input_buf[body.player_id] = body.input_char;
+				}
+			}
+			}).detach();
+	}
 }
 
 // GameClient 实现
@@ -114,14 +164,12 @@ bool GameClient::join_room(int index)
 
 	if (this->start_connect(server_ip.c_str(), 8080) == -1) return false;
 
-	auto [type, body] = this->receive_msg<PlayerIdMsg>();
-	if (type != MsgType::PlayerIDInfo)
-	{
-		LOG_ERR("expected PlayerIDInfo, got " + std::to_string((uint16_t)type) + "\n");
+	auto [type, body] = this->receive_msg<PlayerIDMsg>();
+	if (type != MsgType::PlayerID) {
+		LOG_ERR("expected PlayerIDMsg\n");
 		return false;
 	}
-	else 
-	{
+	else {
 		player_id = body.player_id;
 		LOG_INFO("joined room successfully, player id: " + std::to_string(player_id) + "\n");
 	}
@@ -130,13 +178,15 @@ bool GameClient::join_room(int index)
 
 bool GameClient::wait_start()
 {
-	while (true)
-	{
-		auto [type, body] = this->receive_msg<StartGameMsg>();
-		if (type == MsgType::StartGame)
-		{
+	while (true) {
+		auto [type, body] = this->receive_msg<PlayerInfoMsg>();
+		if (type == MsgType::PlayerInfo) {
 			all_player_cnt = body.all_player_cnt;
 			game_seed = body.game_seed;
+			players_config.clear();
+			for (int i = 0; i < all_player_cnt; i++) {
+				players_config.push_back(body.players[i]);
+			}
 			LOG_INFO("StartGame received, starting game\n");
 			return true;
 		}
