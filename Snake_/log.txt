@@ -1,0 +1,16 @@
+[2026-04-19 15:23:04][INFO] start
+[2026-04-19 15:23:10][INFO] listen to port 8080
+[2026-04-19 15:23:10][INFO] received FindRoom from 26.203.198.225
+
+[2026-04-19 15:23:12][INFO] 26.203.198.225 tcp connect success.
+
+[2026-04-19 15:23:12][INFO] joined room successfully, player id: 0
+
+[2026-04-19 15:23:15][INFO] received FindRoom from 26.203.198.225
+
+[2026-04-19 15:23:17][INFO] 26.203.198.225 tcp connect success.
+
+[2026-04-19 15:23:20][INFO] StartGame received, starting game
+
+[2026-04-19 15:23:20][INFO] game start
+

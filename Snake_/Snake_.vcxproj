@@ -132,9 +132,12 @@
   <ItemGroup>
     <ClInclude Include="canvas.h" />
     <ClInclude Include="double_buffer.h" />
+    <ClInclude Include="game_net.h" />
+    <ClInclude Include="Logger.h" />
     <ClInclude Include="mapinfo.h" />
     <ClInclude Include="online.h" />
     <ClInclude Include="player_id.h" />
+    <ClInclude Include="protocol.h" />
     <ClInclude Include="score_spawner.h" />
     <ClInclude Include="snake.h" />
     <ClInclude Include="timer.h" />
@@ -143,6 +146,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="canvas.cpp" />
+    <ClCompile Include="game_net.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="score_spawner.cpp" />
     <ClCompile Include="snake.cpp" />
